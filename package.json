@@ -1,0 +1,38 @@
+{
+  "name": "saucedemo-reqres-automation",
+  "version": "1.0.0",
+  "description": "UI automation (Playwright + TypeScript) for saucedemo.com and API automation (Postman/Newman) for reqres.in",
+  "private": true,
+  "scripts": {
+    "clean": "rimraf allure-results allure-report playwright-report test-results",
+
+    "ui:q1": "npm run clean && playwright test tests/ui/q1-locked-out-user.spec.ts",
+    "ui:q2": "npm run clean && playwright test tests/ui/q2-standard-user-checkout.spec.ts",
+    "ui:q3": "npm run clean && playwright test tests/ui/q3-performance-glitch-user.spec.ts",
+    "ui:all": "npm run clean && playwright test",
+    "ui:headed": "npm run clean && playwright test --headed",
+
+    "report:playwright": "playwright show-report playwright-report",
+    "report:allure": "allure generate allure-results --clean -o allure-report && allure open allure-report",
+    "report:allure:generate": "allure generate allure-results --clean -o allure-report",
+
+    "api:q3": "newman run api/reqres.postman_collection.json -e api/reqres.postman_environment.json --folder \"API-Q3 Login\" -r cli,htmlextra --reporter-htmlextra-export reports/api/api-q3-login.html",
+    "api:q4": "newman run api/reqres.postman_collection.json -e api/reqres.postman_environment.json --folder \"API-Q4 Get User\" -r cli,htmlextra --reporter-htmlextra-export reports/api/api-q4-get-user.html",
+    "api:q5": "newman run api/reqres.postman_collection.json -e api/reqres.postman_environment.json --folder \"API-Q5 PUT Profile\" -r cli,htmlextra --reporter-htmlextra-export reports/api/api-q5-put.html",
+    "api:q6": "newman run api/reqres.postman_collection.json -e api/reqres.postman_environment.json --folder \"API-Q6 PATCH Field\" -r cli,htmlextra --reporter-htmlextra-export reports/api/api-q6-patch.html",
+    "api:q8": "newman run api/reqres.postman_collection.json -e api/reqres.postman_environment.json --folder \"API-Q8 Bad Requests\" -r cli,htmlextra --reporter-htmlextra-export reports/api/api-q8-bad-requests.html",
+    "api:all": "newman run api/reqres.postman_collection.json -e api/reqres.postman_environment.json -r cli,htmlextra,junit --reporter-htmlextra-export reports/api/api-all.html --reporter-junit-export reports/api/api-all.xml",
+
+    "test:all": "npm run ui:all && npm run api:all"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "@types/node": "^22.0.0",
+    "allure-commandline": "^2.32.0",
+    "allure-playwright": "^3.0.0",
+    "newman": "^6.2.1",
+    "newman-reporter-htmlextra": "^1.23.1",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.6.0"
+  }
+}

@@ -1,0 +1,772 @@
+{
+  "info": {
+    "name": "Reqres API Automation - Assessment",
+    "description": "API automation for https://reqres.in/api (API-Q3 to API-Q8). Run with Newman, see README.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Ensures an auth token exists when a folder is run on its own (e.g. --folder \"API-Q8 Bad Requests\").",
+          "// The login request itself (API-Q3) is skipped so it is always exercised explicitly.",
+          "if (!pm.info.requestName.startsWith('Login') && !pm.collectionVariables.get('authToken')) {",
+          "    pm.sendRequest({",
+          "        url: pm.environment.get('baseUrl') + '/login',",
+          "        method: 'POST',",
+          "        header: { 'Content-Type': 'application/json', 'x-api-key': pm.environment.get('apiKey') },",
+          "        body: { mode: 'raw', raw: JSON.stringify({ email: pm.environment.get('loginEmail'), password: pm.environment.get('loginPassword') }) }",
+          "    }, function (err, res) {",
+          "        if (!err && res.code === 200 && res.json().token) {",
+          "            pm.collectionVariables.set('authToken', res.json().token);",
+          "            console.log('Bootstrap login OK - token stored for standalone folder run');",
+          "        } else {",
+          "            console.warn('Bootstrap login failed', err || res.code);",
+          "        }",
+          "    });",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global checks applied to every request",
+          "pm.test('[global] Response time is under 10s', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(10000);",
+          "});",
+          "pm.test('[global] Response code is present and valid HTTP status', function () {",
+          "    pm.expect(pm.response.code).to.be.within(100, 599);",
+          "});"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "authToken",
+      "value": ""
+    },
+    {
+      "key": "storedFirstName",
+      "value": ""
+    },
+    {
+      "key": "storedLastName",
+      "value": ""
+    },
+    {
+      "key": "storedEmail",
+      "value": ""
+    },
+    {
+      "key": "putRequestSentAt",
+      "value": ""
+    },
+    {
+      "key": "putUpdatedAt",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "API-Q3 Login",
+      "description": "Login with registered credentials and capture authToken.",
+      "item": [
+        {
+          "name": "Login - registered user (capture authToken)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{loginEmail}}\",\n  \"password\": \"{{loginPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test('Response has a non-empty token', function () {",
+                  "    pm.expect(json).to.have.property('token');",
+                  "    pm.expect(json.token).to.be.a('string').and.not.empty;",
+                  "});",
+                  "pm.collectionVariables.set('authToken', json.token);",
+                  "pm.test('authToken is captured into collection variables', function () {",
+                  "    pm.expect(pm.collectionVariables.get('authToken')).to.eql(json.token);",
+                  "});",
+                  "console.log('Captured authToken:', json.token);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "API-Q4 Get User",
+      "description": "GET user by userId and verify name & email match the expected data.",
+      "item": [
+        {
+          "name": "GET user by userId",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "{{userId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const user = pm.response.json().data;",
+                  "pm.test('Returned user id matches requested userId', function () {",
+                  "    pm.expect(user.id).to.eql(Number(pm.environment.get('userId')));",
+                  "});",
+                  "pm.test('First & last name match expected', function () {",
+                  "    pm.expect(user.first_name).to.eql(pm.environment.get('expectedFirstName'));",
+                  "    pm.expect(user.last_name).to.eql(pm.environment.get('expectedLastName'));",
+                  "});",
+                  "pm.test('Email matches expected', function () {",
+                  "    pm.expect(user.email).to.eql(pm.environment.get('expectedEmail'));",
+                  "});",
+                  "pm.test('Email is consistent with the name', function () {",
+                  "    const local = (user.first_name + '.' + user.last_name).toLowerCase();",
+                  "    pm.expect(user.email.toLowerCase()).to.eql(local + '@reqres.in');",
+                  "});",
+                  "// store for later scenarios (PATCH comparison / bad requests)",
+                  "pm.collectionVariables.set('storedFirstName', user.first_name);",
+                  "pm.collectionVariables.set('storedLastName', user.last_name);",
+                  "pm.collectionVariables.set('storedEmail', user.email);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "API-Q5 PUT Profile",
+      "description": "PUT an updated profile and verify the updatedAt timestamp.",
+      "item": [
+        {
+          "name": "PUT updated profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "{{userId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{putName}}\",\n  \"job\": \"{{putJob}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('putRequestSentAt', new Date().toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test('Response echoes the updated name and job', function () {",
+                  "    pm.expect(json.name).to.eql(pm.environment.get('putName'));",
+                  "    pm.expect(json.job).to.eql(pm.environment.get('putJob'));",
+                  "});",
+                  "pm.test('updatedAt is present and a valid ISO-8601 timestamp', function () {",
+                  "    pm.expect(json).to.have.property('updatedAt');",
+                  "    pm.expect(json.updatedAt).to.match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$/);",
+                  "    pm.expect(isNaN(Date.parse(json.updatedAt))).to.be.false;",
+                  "});",
+                  "pm.test('updatedAt is recent (within 5 minutes of the request)', function () {",
+                  "    const sent = Date.parse(pm.collectionVariables.get('putRequestSentAt'));",
+                  "    const updated = Date.parse(json.updatedAt);",
+                  "    pm.expect(Math.abs(updated - sent)).to.be.below(5 * 60 * 1000);",
+                  "});",
+                  "pm.collectionVariables.set('putUpdatedAt', json.updatedAt);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "API-Q6 PATCH Field",
+      "description": "PATCH a single field and verify only that field changed.",
+      "item": [
+        {
+          "name": "PATCH single field (job)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "{{userId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"job\": \"{{patchJob}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "pm.test('Patched field (job) has the new value', function () {",
+                  "    pm.expect(json.job).to.eql(pm.environment.get('patchJob'));",
+                  "});",
+                  "pm.test('Only the patched field (plus updatedAt) is returned', function () {",
+                  "    pm.expect(Object.keys(json).sort()).to.eql(['job', 'updatedAt']);",
+                  "});",
+                  "pm.test('No other profile field was touched', function () {",
+                  "    ['name', 'first_name', 'last_name', 'email', 'avatar'].forEach(function (f) {",
+                  "        pm.expect(json).to.not.have.property(f);",
+                  "    });",
+                  "});",
+                  "pm.test('updatedAt is a valid timestamp', function () {",
+                  "    pm.expect(isNaN(Date.parse(json.updatedAt))).to.be.false;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET user after PATCH - untouched fields unchanged",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "{{userId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "const user = pm.response.json().data;",
+                  "const firstName = pm.collectionVariables.get('storedFirstName') || pm.environment.get('expectedFirstName');",
+                  "const lastName = pm.collectionVariables.get('storedLastName') || pm.environment.get('expectedLastName');",
+                  "const email = pm.collectionVariables.get('storedEmail') || pm.environment.get('expectedEmail');",
+                  "pm.test('first_name, last_name and email are unchanged', function () {",
+                  "    pm.expect(user.first_name).to.eql(firstName);",
+                  "    pm.expect(user.last_name).to.eql(lastName);",
+                  "    pm.expect(user.email).to.eql(email);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "API-Q8 Bad Requests",
+      "description": "Negative tests built from the stored data (email, password, userId, authToken). All must return 4xx.",
+      "item": [
+        {
+          "name": "Login with stored email but missing password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{loginEmail}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('Status code is a 4xx client error', function () {",
+                  "    pm.expect(pm.response.code).to.be.within(400, 499);",
+                  "});",
+                  "",
+                  "pm.test('Error message says password is missing', function () {",
+                  "    pm.expect(pm.response.json().error).to.eql('Missing password');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login with stored password but missing email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"{{loginPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('Status code is a 4xx client error', function () {",
+                  "    pm.expect(pm.response.code).to.be.within(400, 499);",
+                  "});",
+                  "",
+                  "pm.test('Error message says email or username is missing', function () {",
+                  "    pm.expect(pm.response.json().error).to.match(/missing email or username/i);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login with unregistered email + stored password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"not.registered.{{$timestamp}}@reqres.in\",\n  \"password\": \"{{loginPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('Status code is a 4xx client error', function () {",
+                  "    pm.expect(pm.response.code).to.be.within(400, 499);",
+                  "});",
+                  "",
+                  "pm.test('Error message says user not found', function () {",
+                  "    pm.expect(pm.response.json().error).to.match(/user not found/i);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register with stored email but missing password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{loginEmail}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('Status code is a 4xx client error', function () {",
+                  "    pm.expect(pm.response.code).to.be.within(400, 499);",
+                  "});",
+                  "",
+                  "pm.test('Error message says password is missing', function () {",
+                  "    pm.expect(pm.response.json().error).to.eql('Missing password');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET non-existent user (stored invalid userId)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{notFoundUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "{{notFoundUserId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test('Status code is a 4xx client error', function () {",
+                  "    pm.expect(pm.response.code).to.be.within(400, 499);",
+                  "});",
+                  "",
+                  "pm.test('Body is empty JSON object', function () {",
+                  "    pm.expect(pm.response.json()).to.eql({});",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET non-existent resource",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/unknown/{{notFoundUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "unknown",
+                "{{notFoundUserId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "pm.test('Status code is a 4xx client error', function () {",
+                  "    pm.expect(pm.response.code).to.be.within(400, 499);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET stored user WITHOUT x-api-key header",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "{{userId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "pm.test('Status code is a 4xx client error', function () {",
+                  "    pm.expect(pm.response.code).to.be.within(400, 499);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
